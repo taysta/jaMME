@@ -1166,6 +1166,163 @@ static void demoSeekTwoCommand_f(void) {
 	}
 }
 
+// extremely primitive way to get a value for a key in a json document.
+// Will only work properly for getting strings/numbers pointed to by a key. Won't return objects or arrays or whatever.
+const char* simpleGetJSONValueForKey(const char* json, const char* key, int depth) {
+	char valueBufferReal[4][100];
+	char* valueBuffer;
+	static int	bufferIndex = 0;
+	char* buf;
+	valueBuffer = (char*)&valueBufferReal[bufferIndex++ & 3];
+
+	int objectDepth = 0;
+	qboolean escaped = qfalse;
+	qboolean wasEscaped = qfalse;
+	qboolean inQuote = qfalse;
+	qboolean thisIsValueString = qfalse;
+	int valueStringOutIndex = 0;
+
+	const char* jsonHere = json;
+	int keyLength = strlen(key);
+
+	while (*jsonHere) {
+		wasEscaped = escaped;
+		escaped = qfalse;
+		if (*jsonHere == '{' && !wasEscaped) {
+			objectDepth++;
+		}
+		else if (*jsonHere == '}' && !wasEscaped) {
+			objectDepth--;
+		}
+		else if (*jsonHere == '\\' && !wasEscaped) {
+			escaped = qtrue;
+		}
+		else if (*jsonHere == '"' && !wasEscaped) {
+			inQuote = !inQuote;
+			if (inQuote && objectDepth == 1) {
+				if (!Q_stricmpn(jsonHere + 1, key, keyLength)) {
+					// Maybe we found our key. Check.
+					const char* jsonFoundMaybe = jsonHere + keyLength + 1;
+					if (*jsonFoundMaybe != '"') { // this isn't the end of what might be a key. keep searching.
+						jsonHere++;
+						continue;
+					}
+					jsonFoundMaybe++;
+					while (*jsonFoundMaybe && (*jsonFoundMaybe == '\t' || *jsonFoundMaybe == '\n' || *jsonFoundMaybe == '\r' || *jsonFoundMaybe == ' ')) {
+						jsonFoundMaybe++; // fast forward through whitespaces
+					}
+					if (*jsonFoundMaybe != ':') {
+						jsonHere++; // It wasn't a key.
+						continue;
+					}
+					jsonFoundMaybe++;
+					while (*jsonFoundMaybe && (*jsonFoundMaybe == '\t' || *jsonFoundMaybe == '\n' || *jsonFoundMaybe == '\r' || *jsonFoundMaybe == ' ')) {
+						jsonFoundMaybe++; // fast forward through whitespaces
+					}
+					if (*jsonFoundMaybe == '{' || *jsonFoundMaybe == '[') {
+						jsonHere++; // Unsupported. Move on.
+						continue;
+					}
+					if (*jsonFoundMaybe != '"') {
+						// This is a number probably.
+						// Parse until we find something that ends the number, like a , or } or whitespace
+						int outIndex = 0;
+						while (*jsonFoundMaybe && *jsonFoundMaybe != ' ' && *jsonFoundMaybe != '}' && *jsonFoundMaybe != ',' && outIndex < (sizeof(valueBufferReal[0]) - 1)) {
+							valueBuffer[outIndex++] = *jsonFoundMaybe;
+							*jsonFoundMaybe++;
+						}
+						valueBuffer[outIndex] = '\0';
+						return valueBuffer;
+					}
+					else {
+						// This is a string.
+						*jsonFoundMaybe++;
+						jsonHere = jsonFoundMaybe;
+						thisIsValueString = qtrue;
+						valueStringOutIndex = 0;
+						continue;
+					}
+				}
+			}
+			else if (!inQuote && thisIsValueString) {
+				valueBuffer[valueStringOutIndex] = 0;
+				return valueBuffer;
+			}
+		}
+		else if (thisIsValueString && inQuote) {
+			if (valueStringOutIndex < (sizeof(valueBufferReal[0]) - 1)) {
+				valueBuffer[valueStringOutIndex++] = *jsonHere;
+			}
+			else {
+				// To long. Return it now in truncated form :(
+				valueBuffer[valueStringOutIndex] = 0;
+				return valueBuffer;
+			}
+		}
+		jsonHere++;
+	}
+
+	return NULL;
+}
+
+static void demoSeekPreRecordCommand_f(void) {
+	char metaDataFileName[MAX_OSPATH];
+	char metaDataBuffer[1024];
+	fileHandle_t metaDataHandle = NULL;
+	int seekTime = 0;
+	qboolean isNegative = qfalse;
+	const char *cmd = CG_Argv(1);
+	if (isdigit( cmd[0] ) || cmd[0] == '-') { // we allow negative values here too.
+		//teh's parser for time MM:SS.MSEC, thanks *bow*
+		int i;
+		char *sec, *min;;
+		min = (char *)cmd;
+
+		if (min[0] == '-') {
+			isNegative = qtrue;
+			min++;
+		}
+
+		for( i=0; min[i]!=':'&& min[i]!=0; i++ );
+		if(cmd[i]==0)
+			sec = 0;
+		else
+		{
+			min[i] = 0;
+			sec = min+i+1;
+		}
+		seekTime = (atoi(min) * 60000 + (sec ? atof(sec) : 0) * 1000);
+
+		if (isNegative) {
+			seekTime = -seekTime;
+		}
+
+		// Find metadata to see if this demo has info about pre-recording
+		Com_sprintf(metaDataFileName, sizeof(metaDataFileName), "mmedemos/%s.meta", mme_demoFileName.string);
+		trap_FS_FOpenFile(metaDataFileName, &metaDataHandle, FS_READ);
+		if (metaDataHandle) {
+			trap_FS_Read(metaDataBuffer, sizeof(metaDataBuffer), metaDataHandle);
+			metaDataBuffer[sizeof(metaDataBuffer) - 1] = 0; // Just to be safe.
+
+			const char* prsoValue = simpleGetJSONValueForKey(metaDataBuffer, "prso",1); // Pre-recording start offset.
+			if (prsoValue) {
+				int prso = atoi(prsoValue);
+
+				seekTime += prso;
+
+				if (seekTime > 0) {
+					demo.play.time = seekTime;
+					demo.play.fraction = 0;
+				}
+			}
+
+
+			trap_FS_FCloseFile(metaDataHandle);
+		}
+
+	}
+}
+
 static void demoSeekCommand_f(void) {
 	const char *cmd = CG_Argv(1);
 	if (cmd[0] == '+') {
@@ -1364,6 +1521,7 @@ void demoPlaybackInit(void) {
 	trap_AddCommand("speed");
 	trap_AddCommand("seek");
 	trap_AddCommand("demoSeek");
+	trap_AddCommand("demoSeekPreRecord");
 	trap_AddCommand("find");
 	trap_AddCommand("pause");
 	trap_AddCommand("capture");
@@ -1543,6 +1701,8 @@ qboolean CG_DemosConsoleCommand( void ) {
 		demoSeekCommand_f();
 	} else if (!Q_stricmp(cmd, "demoSeek")) {
 		demoSeekTwoCommand_f();
+	} else if (!Q_stricmp(cmd, "demoSeekPreRecord")) {
+		demoSeekPreRecordCommand_f();
 	} else if (!Q_stricmp(cmd, "find")) {
 		demoFindCommand_f();
 	} else if (!Q_stricmp(cmd, "speed")) {

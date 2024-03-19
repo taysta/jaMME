@@ -325,108 +325,12 @@ const char* demoCutReadPossibleMetadata(msg_t* msg) {
 	return MSG_ReadBigString(msg);
 }
 
-// extremely primitive way to get a value for a key in a json document.
-// Will only work properly for getting strings/numbers pointed to by a key. Won't return objects or arrays or whatever.
-const char* simpleGetJSONValueForKey(const char* json, const char* key, int depth =1) {
-	char valueBufferReal[4][100];
-	char* valueBuffer;
-	static int	bufferIndex = 0;
-	char* buf;
-	valueBuffer = (char*)&valueBufferReal[bufferIndex++ & 3];
 
-	int objectDepth = 0;
-	bool escaped = false;
-	bool wasEscaped = false;
-	bool inQuote = false;
-	bool thisIsValueString = false;
-	int valueStringOutIndex = 0;
-
-	const char* jsonHere = json;
-	int keyLength = strlen(key);
-
-	while (*jsonHere) {
-		wasEscaped = escaped;
-		escaped = false;
-		if (*jsonHere == '{' && !wasEscaped) {
-			objectDepth++;
-		}
-		else if (*jsonHere == '}' && !wasEscaped) {
-			objectDepth--;
-		}
-		else if (*jsonHere == '\\' && !wasEscaped) {
-			escaped = true;
-		}
-		else if (*jsonHere == '"' && !wasEscaped) {
-			inQuote = !inQuote;
-			if (inQuote && objectDepth == 1) {
-				if (!Q_stricmpn(jsonHere+1, key, keyLength)) {
-					// Maybe we found our key. Check.
-					const char* jsonFoundMaybe = jsonHere + keyLength+1;
-					if (*jsonFoundMaybe != '"') { // this isn't the end of what might be a key. keep searching.
-						jsonHere++;
-						continue;
-					}
-					jsonFoundMaybe++;
-					while (*jsonFoundMaybe && (*jsonFoundMaybe == '\t' || *jsonFoundMaybe == '\n' || *jsonFoundMaybe == '\r' || *jsonFoundMaybe == ' ')) {
-						jsonFoundMaybe++; // fast forward through whitespaces
-					}
-					if (*jsonFoundMaybe != ':') {
-						jsonHere++; // It wasn't a key.
-						continue;
-					}
-					jsonFoundMaybe++;
-					while (*jsonFoundMaybe && (*jsonFoundMaybe == '\t' || *jsonFoundMaybe == '\n' || *jsonFoundMaybe == '\r' || *jsonFoundMaybe == ' ')) {
-						jsonFoundMaybe++; // fast forward through whitespaces
-					}
-					if (*jsonFoundMaybe == '{' || *jsonFoundMaybe == '[') {
-						jsonHere++; // Unsupported. Move on.
-						continue;
-					}
-					if (*jsonFoundMaybe != '"') {
-						// This is a number probably.
-						// Parse until we find something that ends the number, like a , or } or whitespace
-						int outIndex = 0;
-						while (*jsonFoundMaybe && *jsonFoundMaybe != ' ' && *jsonFoundMaybe != '}' && *jsonFoundMaybe != ',' && outIndex<(sizeof(valueBufferReal[0])-1)) {
-							valueBuffer[outIndex++] = *jsonFoundMaybe;
-							*jsonFoundMaybe++;
-						}
-						valueBuffer[outIndex] = '\0';
-						return valueBuffer;
-					}
-					else {
-						// This is a string.
-						*jsonFoundMaybe++;
-						jsonHere = jsonFoundMaybe;
-						thisIsValueString = true;
-						valueStringOutIndex = 0;
-						continue;
-					}
-				}
-			}
-			else if(!inQuote && thisIsValueString) {
-				valueBuffer[valueStringOutIndex] = 0;
-				return valueBuffer;
-			}
-		}
-		else if (thisIsValueString && inQuote){
-			if (valueStringOutIndex < (sizeof(valueBufferReal[0]) - 1)) {
-				valueBuffer[valueStringOutIndex++] = *jsonHere;
-			}
-			else {
-				// To long. Return it now in truncated form :(
-				valueBuffer[valueStringOutIndex] = 0;
-				return valueBuffer;
-			}
-		}
-		jsonHere++;
-	}
-
-	return NULL;
-}
 
 void demoConvert( const char *oldName, const char *newBaseName, qboolean smoothen ) {
 	fileHandle_t	oldHandle = 0;
 	fileHandle_t	newHandle = 0;
+	fileHandle_t	metaDataHandle = 0;
 	int				temp;
 	int				oldSize;
 	int				msgSequence = 0;
@@ -444,6 +348,7 @@ void demoConvert( const char *oldName, const char *newBaseName, qboolean smoothe
 	clSnapshot_t	*newSnap;
 	int				levelCount = 0;
 	char			newName[MAX_OSPATH];
+	char			metaDataFileName[MAX_OSPATH];
 	short			rmgDataSize = 0;
 	short			flatDataSize = 0;
 	short			automapCount = 0;
@@ -508,11 +413,22 @@ void demoConvert( const char *oldName, const char *newBaseName, qboolean smoothe
 					if (maybeMeta) {
 
 						Com_Printf("Demo metadata found: %s.\n", maybeMeta);
-						const char* prsoValue = simpleGetJSONValueForKey(maybeMeta, "prso"); // Pre-recording start offset.
-						if (prsoValue) {
-							int prso = atoi(prsoValue);
-							Com_Printf("Pre-recording start offset found: %d.\n", prso);
+						if (levelCount) {
+							demo.firstPack = qtrue;
+							Com_sprintf(metaDataFileName, sizeof(newName), "%s.%d.meta", newBaseName, levelCount);
 						}
+						else {
+							Com_sprintf(metaDataFileName, sizeof(newName), "%s.meta", newBaseName);
+						}
+						metaDataHandle = FS_FOpenFileWrite(metaDataFileName);
+						if (!metaDataHandle) {
+							Com_Printf("Failed to open %s for saving metadata.\n", newName);
+							goto conversionerror;
+						}
+						else {
+							FS_Write(maybeMeta, strlen(maybeMeta), metaDataHandle);
+						}
+						FS_FCloseFile(metaDataHandle);
 					}
 				}
                 break;

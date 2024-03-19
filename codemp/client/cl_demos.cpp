@@ -293,6 +293,137 @@ static void demoFrameInterpolate( demoFrame_t frames[], int frameCount, int inde
 	}
 }
 
+const char postEOFMetadataMarker[] = { "HIDDENMETA" };
+
+const char* demoCutReadPossibleMetadata(msg_t* msg) {
+
+	// Normal demo readers will quit here. For all intents and purposes this demo message is over. But we're gonna put the metadata here now. Since it comes after svc_EOF, nobody will ever be bothered by it 
+	// but we can read it if we want to.
+	const int metaMarkerLength = sizeof(postEOFMetadataMarker) - 1;
+	// This is how the demo huffman operates. Worst case a byte can take almost 2 bytes to save, from what I understand. When reading past the end, we need to detect if we SHOULD read past the end.
+	// For each byte we need to read, thus, the message length must be at least 2 bytes longer still. Hence at the end we will artificially set the message length to be minimum that long.
+	// We will only read x amount of bytes (where x is the length of the meta marker) and see if the meta marker is present. If it is, we then proceeed to read a bigstring.
+	// This same thing is technically not true for the custom compressed types (as their size is always the real size of the data) but we'll just leave it like this to be universal and simple.
+	const int maxBytePerByteSaved = 2;
+	const int metaMarkerPresenceMinimumByteLengthExtra = metaMarkerLength * maxBytePerByteSaved;
+
+	const int requiredCursize = msg->readcount + metaMarkerPresenceMinimumByteLengthExtra; // We'll just set it to this value at the end if it ends up smaller.
+
+	if (msg->cursize < requiredCursize) {
+		return NULL;
+	}
+
+	for (int i = 0; i < metaMarkerLength; i++) {
+		if (msg->cursize < msg->readcount + maxBytePerByteSaved)
+		{
+			return NULL;
+		}
+		if (MSG_ReadByte(msg) != postEOFMetadataMarker[i]) {
+			return NULL;
+		}
+	}
+	return MSG_ReadBigString(msg);
+}
+
+// extremely primitive way to get a value for a key in a json document.
+// Will only work properly for getting strings/numbers pointed to by a key. Won't return objects or arrays or whatever.
+const char* simpleGetJSONValueForKey(const char* json, const char* key, int depth =1) {
+	char valueBufferReal[4][100];
+	char* valueBuffer;
+	static int	bufferIndex = 0;
+	char* buf;
+	valueBuffer = (char*)&valueBufferReal[bufferIndex++ & 3];
+
+	int objectDepth = 0;
+	bool escaped = false;
+	bool wasEscaped = false;
+	bool inQuote = false;
+	bool thisIsValueString = false;
+	int valueStringOutIndex = 0;
+
+	const char* jsonHere = json;
+	int keyLength = strlen(key);
+
+	while (*jsonHere) {
+		wasEscaped = escaped;
+		escaped = false;
+		if (*jsonHere == '{' && !wasEscaped) {
+			objectDepth++;
+		}
+		else if (*jsonHere == '}' && !wasEscaped) {
+			objectDepth--;
+		}
+		else if (*jsonHere == '\\' && !wasEscaped) {
+			escaped = true;
+		}
+		else if (*jsonHere == '"' && !wasEscaped) {
+			inQuote = !inQuote;
+			if (inQuote && objectDepth == 1) {
+				if (!Q_stricmpn(jsonHere+1, key, keyLength)) {
+					// Maybe we found our key. Check.
+					const char* jsonFoundMaybe = jsonHere + keyLength+1;
+					if (*jsonFoundMaybe != '"') { // this isn't the end of what might be a key. keep searching.
+						jsonHere++;
+						continue;
+					}
+					jsonFoundMaybe++;
+					while (*jsonFoundMaybe && (*jsonFoundMaybe == '\t' || *jsonFoundMaybe == '\n' || *jsonFoundMaybe == '\r' || *jsonFoundMaybe == ' ')) {
+						jsonFoundMaybe++; // fast forward through whitespaces
+					}
+					if (*jsonFoundMaybe != ':') {
+						jsonHere++; // It wasn't a key.
+						continue;
+					}
+					jsonFoundMaybe++;
+					while (*jsonFoundMaybe && (*jsonFoundMaybe == '\t' || *jsonFoundMaybe == '\n' || *jsonFoundMaybe == '\r' || *jsonFoundMaybe == ' ')) {
+						jsonFoundMaybe++; // fast forward through whitespaces
+					}
+					if (*jsonFoundMaybe == '{' || *jsonFoundMaybe == '[') {
+						jsonHere++; // Unsupported. Move on.
+						continue;
+					}
+					if (*jsonFoundMaybe != '"') {
+						// This is a number probably.
+						// Parse until we find something that ends the number, like a , or } or whitespace
+						int outIndex = 0;
+						while (*jsonFoundMaybe && *jsonFoundMaybe != ' ' && *jsonFoundMaybe != '}' && *jsonFoundMaybe != ',' && outIndex<(sizeof(valueBufferReal[0])-1)) {
+							valueBuffer[outIndex++] = *jsonFoundMaybe;
+							*jsonFoundMaybe++;
+						}
+						valueBuffer[outIndex] = '\0';
+						return valueBuffer;
+					}
+					else {
+						// This is a string.
+						*jsonFoundMaybe++;
+						jsonHere = jsonFoundMaybe;
+						thisIsValueString = true;
+						valueStringOutIndex = 0;
+						continue;
+					}
+				}
+			}
+			else if(!inQuote && thisIsValueString) {
+				valueBuffer[valueStringOutIndex] = 0;
+				return valueBuffer;
+			}
+		}
+		else if (thisIsValueString && inQuote){
+			if (valueStringOutIndex < (sizeof(valueBufferReal[0]) - 1)) {
+				valueBuffer[valueStringOutIndex++] = *jsonHere;
+			}
+			else {
+				// To long. Return it now in truncated form :(
+				valueBuffer[valueStringOutIndex] = 0;
+				return valueBuffer;
+			}
+		}
+		jsonHere++;
+	}
+
+	return NULL;
+}
+
 void demoConvert( const char *oldName, const char *newBaseName, qboolean smoothen ) {
 	fileHandle_t	oldHandle = 0;
 	fileHandle_t	newHandle = 0;
@@ -317,6 +448,8 @@ void demoConvert( const char *oldName, const char *newBaseName, qboolean smoothe
 	short			flatDataSize = 0;
 	short			automapCount = 0;
 	int				i = 0;
+	qboolean		wasFirstCommandByte = qfalse;
+	qboolean		firstCommandByteRead = qfalse;
 
 	oldSize = FS_FOpenFileRead( oldName, &oldHandle, qtrue );
 	if (!oldHandle) {
@@ -364,7 +497,24 @@ void demoConvert( const char *oldName, const char *newBaseName, qboolean smoothe
 				goto conversionerror;
 			}
             cmd = MSG_ReadByte( &oldMsg );
+
+			wasFirstCommandByte = (qboolean)!firstCommandByteRead;
+			firstCommandByteRead = qtrue;
+
 			if ( cmd == svc_EOF) {
+				if (wasFirstCommandByte) {
+					// check for hidden meta content
+					const char* maybeMeta = demoCutReadPossibleMetadata(&oldMsg);
+					if (maybeMeta) {
+
+						Com_Printf("Demo metadata found: %s.\n", maybeMeta);
+						const char* prsoValue = simpleGetJSONValueForKey(maybeMeta, "prso"); // Pre-recording start offset.
+						if (prsoValue) {
+							int prso = atoi(prsoValue);
+							Com_Printf("Pre-recording start offset found: %d.\n", prso);
+						}
+					}
+				}
                 break;
 			}
 			workFrame = &convert->frames[ convert->frameIndex % DEMOCONVERTFRAMES ];

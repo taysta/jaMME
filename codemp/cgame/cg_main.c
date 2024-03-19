@@ -3087,6 +3087,8 @@ void CG_PmoveClientPointerUpdate();
 void WP_SaberLoadParms( void );
 void BG_VehicleLoadParms( void );
 
+void demoSeekPreRecord(const char* preRecordTimeString);
+
 /*
 =================
 CG_Init
@@ -3347,6 +3349,10 @@ Ghoul2 Insert End
 	trap_Cvar_VariableStringBuffer( "rate", buf, sizeof( buf ) );
 	if ( atoi( buf ) == 4000 )
 		CG_Printf( "^3WARNING: Default /rate value detected. Suggest typing /rate 25000 for a smoother connection!\n" );
+
+	if (*mme_autoSeekPreRecord.string && !(*mme_autoSeekPreRecord.string == '0' && strlen(mme_autoSeekPreRecord.string) == 1)) {
+		demoSeekPreRecord(mme_autoSeekPreRecord.string);
+	}
 }
 
 //makes sure returned string is in localized format

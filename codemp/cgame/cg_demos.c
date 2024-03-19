@@ -1265,31 +1265,30 @@ const char* simpleGetJSONValueForKey(const char* json, const char* key, int dept
 	return NULL;
 }
 
-static void demoSeekPreRecordCommand_f(void) {
+void demoSeekPreRecord(const char* preRecordTimeString) {
 	char metaDataFileName[MAX_OSPATH];
 	char metaDataBuffer[1024];
 	fileHandle_t metaDataHandle = NULL;
 	int seekTime = 0;
 	qboolean isNegative = qfalse;
-	const char *cmd = CG_Argv(1);
-	if (isdigit( cmd[0] ) || cmd[0] == '-') { // we allow negative values here too.
+	if (isdigit(preRecordTimeString[0]) || preRecordTimeString[0] == '-') { // we allow negative values here too.
 		//teh's parser for time MM:SS.MSEC, thanks *bow*
 		int i;
-		char *sec, *min;;
-		min = (char *)cmd;
+		char* sec, * min;;
+		min = (char*)preRecordTimeString;
 
 		if (min[0] == '-') {
 			isNegative = qtrue;
 			min++;
 		}
 
-		for( i=0; min[i]!=':'&& min[i]!=0; i++ );
-		if(cmd[i]==0)
+		for (i = 0; min[i] != ':' && min[i] != 0; i++);
+		if (preRecordTimeString[i] == 0)
 			sec = 0;
 		else
 		{
 			min[i] = 0;
-			sec = min+i+1;
+			sec = min + i + 1;
 		}
 		seekTime = (atoi(min) * 60000 + (sec ? atof(sec) : 0) * 1000);
 
@@ -1304,7 +1303,7 @@ static void demoSeekPreRecordCommand_f(void) {
 			trap_FS_Read(metaDataBuffer, sizeof(metaDataBuffer), metaDataHandle);
 			metaDataBuffer[sizeof(metaDataBuffer) - 1] = 0; // Just to be safe.
 
-			const char* prsoValue = simpleGetJSONValueForKey(metaDataBuffer, "prso",1); // Pre-recording start offset.
+			const char* prsoValue = simpleGetJSONValueForKey(metaDataBuffer, "prso", 1); // Pre-recording start offset.
 			if (prsoValue) {
 				int prso = atoi(prsoValue);
 
@@ -1321,6 +1320,11 @@ static void demoSeekPreRecordCommand_f(void) {
 		}
 
 	}
+}
+
+static void demoSeekPreRecordCommand_f(void) {
+	const char *cmd = CG_Argv(1);
+	demoSeekPreRecord(cmd);
 }
 
 static void demoSeekCommand_f(void) {

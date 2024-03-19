@@ -325,8 +325,6 @@ const char* demoCutReadPossibleMetadata(msg_t* msg) {
 	return MSG_ReadBigString(msg);
 }
 
-
-
 void demoConvert( const char *oldName, const char *newBaseName, qboolean smoothen ) {
 	fileHandle_t	oldHandle = 0;
 	fileHandle_t	newHandle = 0;

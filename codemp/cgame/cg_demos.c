@@ -1169,10 +1169,9 @@ static void demoSeekTwoCommand_f(void) {
 // extremely primitive way to get a value for a key in a json document.
 // Will only work properly for getting strings/numbers pointed to by a key. Won't return objects or arrays or whatever.
 const char* simpleGetJSONValueForKey(const char* json, const char* key, int depth) {
-	char valueBufferReal[4][100];
+	static char valueBufferReal[4][100];
 	char* valueBuffer;
 	static int	bufferIndex = 0;
-	char* buf;
 	valueBuffer = (char*)&valueBufferReal[bufferIndex++ & 3];
 
 	int objectDepth = 0;
@@ -1229,14 +1228,14 @@ const char* simpleGetJSONValueForKey(const char* json, const char* key, int dept
 						int outIndex = 0;
 						while (*jsonFoundMaybe && *jsonFoundMaybe != ' ' && *jsonFoundMaybe != '}' && *jsonFoundMaybe != ',' && outIndex < (sizeof(valueBufferReal[0]) - 1)) {
 							valueBuffer[outIndex++] = *jsonFoundMaybe;
-							*jsonFoundMaybe++;
+							jsonFoundMaybe++;
 						}
 						valueBuffer[outIndex] = '\0';
 						return valueBuffer;
 					}
 					else {
 						// This is a string.
-						*jsonFoundMaybe++;
+						jsonFoundMaybe++;
 						jsonHere = jsonFoundMaybe;
 						thisIsValueString = qtrue;
 						valueStringOutIndex = 0;
@@ -1261,14 +1260,14 @@ const char* simpleGetJSONValueForKey(const char* json, const char* key, int dept
 		}
 		jsonHere++;
 	}
-
 	return NULL;
 }
 
 void demoSeekPreRecord(const char* preRecordTimeString) {
 	char metaDataFileName[MAX_OSPATH];
 	char metaDataBuffer[1024];
-	fileHandle_t metaDataHandle = NULL;
+	fileHandle_t metaDataHandle = 0;
+	int len;
 	int seekTime = 0;
 	qboolean isNegative = qfalse;
 	if (isdigit(preRecordTimeString[0]) || preRecordTimeString[0] == '-') { // we allow negative values here too.
@@ -1298,10 +1297,16 @@ void demoSeekPreRecord(const char* preRecordTimeString) {
 
 		// Find metadata to see if this demo has info about pre-recording
 		Com_sprintf(metaDataFileName, sizeof(metaDataFileName), "mmedemos/%s.meta", mme_demoFileName.string);
-		trap_FS_FOpenFile(metaDataFileName, &metaDataHandle, FS_READ);
+		len = trap_FS_FOpenFile(metaDataFileName, &metaDataHandle, FS_READ);
 		if (metaDataHandle) {
+			Com_Memset(metaDataBuffer, 0, sizeof(metaDataBuffer));
 			trap_FS_Read(metaDataBuffer, sizeof(metaDataBuffer), metaDataHandle);
-			metaDataBuffer[sizeof(metaDataBuffer) - 1] = 0; // Just to be safe.
+			if (len < (sizeof(metaDataBuffer) - 1)) {
+				metaDataBuffer[len] = 0;
+			}
+			else {
+				metaDataBuffer[sizeof(metaDataBuffer) - 1] = 0; 
+			}
 
 			const char* prsoValue = simpleGetJSONValueForKey(metaDataBuffer, "prso", 1); // Pre-recording start offset.
 			if (prsoValue) {
@@ -1312,13 +1317,29 @@ void demoSeekPreRecord(const char* preRecordTimeString) {
 				if (seekTime > 0) {
 					demo.play.time = seekTime;
 					demo.play.fraction = 0;
+#ifdef _DEBUG
+					Com_Printf("Pre-record start offset metadata found for demo %s: start offset is %d, actual demo seek time is %d\n", mme_demoFileName.string, prso, seekTime);
+#endif
+				}
+				else {
+#ifdef _DEBUG
+					Com_Printf("Pre-record start offset metadata found for demo %s, but actual demo seek time is < 0, ignoring: start offset is %d, actual demo seek time is %d\n", mme_demoFileName.string, prso, seekTime);
+#endif
 				}
 			}
-
-
+			else {
+#ifdef _DEBUG
+				Com_Printf("No pre-record start offset metadata found for demo %s\n", mme_demoFileName.string);
+#endif
+			}
 			trap_FS_FCloseFile(metaDataHandle);
 		}
+		else {
 
+#ifdef _DEBUG
+			Com_Printf("No metadata found for demo %s\n", mme_demoFileName.string); 
+#endif
+		}
 	}
 }
 
@@ -1561,6 +1582,11 @@ void demoPlaybackInit(void) {
 	trap_SetUserCmdValue( 0, 1.0f, 0.0f, 0.0f, 0.0f, 0, 0, qfalse );
 
 	trap_SendConsoleCommand("exec mmedemos.cfg\n");
+
+	if (*mme_autoSeekPreRecord.string && !(*mme_autoSeekPreRecord.string == '0' && strlen(mme_autoSeekPreRecord.string) == 1)) {
+		demoSeekPreRecord(mme_autoSeekPreRecord.string);
+	}
+
 //	trap_Cvar_Set( "mov_captureName", "" );
 	trap_Cvar_VariableStringBuffer( "mme_demoStartProject", projectFile, sizeof( projectFile ));
 	if (projectFile[0]) {
@@ -1703,10 +1729,10 @@ qboolean CG_DemosConsoleCommand( void ) {
 		demoCaptureCommand_f();
 	} else if (!Q_stricmp(cmd, "seek")) {
 		demoSeekCommand_f();
-	} else if (!Q_stricmp(cmd, "demoSeek")) {
-		demoSeekTwoCommand_f();
 	} else if (!Q_stricmp(cmd, "demoSeekPreRecord")) {
 		demoSeekPreRecordCommand_f();
+	} else if (!Q_stricmp(cmd, "demoSeek")) {
+		demoSeekTwoCommand_f();
 	} else if (!Q_stricmp(cmd, "find")) {
 		demoFindCommand_f();
 	} else if (!Q_stricmp(cmd, "speed")) {

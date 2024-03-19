@@ -1218,6 +1218,10 @@ const char* simpleGetJSONValueForKey(const char* json, const char* key, int dept
 					while (*jsonFoundMaybe && (*jsonFoundMaybe == '\t' || *jsonFoundMaybe == '\n' || *jsonFoundMaybe == '\r' || *jsonFoundMaybe == ' ')) {
 						jsonFoundMaybe++; // fast forward through whitespaces
 					}
+					if (!*jsonFoundMaybe) {
+						jsonHere++; // Error.
+						continue;
+					}
 					if (*jsonFoundMaybe == '{' || *jsonFoundMaybe == '[') {
 						jsonHere++; // Unsupported. Move on.
 						continue;

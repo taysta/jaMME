@@ -661,6 +661,11 @@ void CG_PainEvent( centity_t *cent, int health ) {
 		return;
 	}
 
+	if (cg.predictedPlayerState.duelInProgress && mov_duelIsolation.integer) {
+		if ((cg.predictedPlayerState.clientNum != cent->currentState.clientNum) && (cg.predictedPlayerState.duelIndex != cent->currentState.clientNum))
+			return;//Dont play pain sounds from non duelers if we are dueling and isolated
+	}
+
 	if ( health < 25 ) {
 		snd = "*pain25.wav";
 	} else if ( health < 50 ) {
@@ -1352,6 +1357,17 @@ static void CG_GetEventStuff(const float coeff, const int time, const float radi
 	}
 }
 
+static qboolean CG_ProximityCheck(vec3_t pos1, vec3_t pos2) { //Returns qtrue if two vectors are within 32 of eachother in every way?
+	int i;
+	for (i = 0; i <= 2; i++) {
+		if (pos1[i] < (pos2[i] - 32))
+			return qfalse;
+		if (pos1[i] > (pos2[i] + 32))
+			return qfalse;
+	}
+	return qtrue;
+}
+
 /*
 ==============
 CG_EntityEvent
@@ -1457,6 +1473,8 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 
 	case EV_FOOTSTEP:
 		DEBUGNAME("EV_FOOTSTEP");
+		if (mov_duelIsolation.integer && (cg.predictedPlayerState.duelInProgress && (cg.predictedPlayerState.clientNum != es->clientNum && cg.predictedPlayerState.duelIndex != es->clientNum)))
+			break;
 		if (!(mov_soundDisable.integer & SDISABLE_STEP) && cg_footsteps.integer) {
 			footstep_t	soundType;
 			switch( es->eventParm )
@@ -1539,6 +1557,10 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 	case EV_FALL:
 		DEBUGNAME("EV_FALL");
 		if (es->number == cg.snap->ps.clientNum && cg.snap->ps.fallingToDeath)
+			break;
+		if (mov_duelIsolation.integer &&
+		(cg.predictedPlayerState.duelInProgress &&
+		(cg.predictedPlayerState.clientNum != es->number && cg.predictedPlayerState.duelIndex != es->number)))
 			break;
 		DoFall(cent, es, clientNum);
 		break;
@@ -2255,13 +2277,17 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 			
 //			if ( mov_duelIsolation.integer && (cg.predictedPlayerState.duelInProgress && (cg.predictedPlayerState.clientNum != es->clientNum && cg.predictedPlayerState.duelIndex != es->clientNum)) )
 //				break;
-			if ( cg.snap->ps.duelInProgress && es->otherEntityNum2 != cg.snap->ps.clientNum && es->otherEntityNum2 != cg.snap->ps.duelIndex )
-				return;
+//			if ( cg.snap->ps.duelInProgress && es->otherEntityNum2 != cg.snap->ps.clientNum && es->otherEntityNum2 != cg.snap->ps.duelIndex )
+//				return;
 
 			if ( es->otherEntityNum2 >= 0
 				&& es->otherEntityNum2 < ENTITYNUM_NONE )
 			{//we have a specific person who is causing this effect, see if we should override it with any custom saber effects/sounds
 				clientInfo_t *client = NULL;
+
+				if ( mov_duelIsolation.integer && cg.snap->ps.duelInProgress && es->otherEntityNum2 != cg.snap->ps.clientNum && es->otherEntityNum2 != cg.snap->ps.duelIndex )
+					break;
+
 				if ( cg_entities[es->otherEntityNum2].currentState.eType == ET_NPC )
 				{
 					client = cg_entities[es->otherEntityNum2].npcClient;
@@ -2405,8 +2431,15 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 
 				if ( es->otherEntityNum2 >= 0
 					&& es->otherEntityNum2 < ENTITYNUM_NONE )
-				{//we have a specific person who is causing this effect, see if we should override it with any custom saber effects/sounds
+				{//we have a specific person who is causing this effect, see if we should override it with any custom saber effects/sounds <-BS, this is often 0 when clientnum of person is not
 					clientInfo_t *client = NULL;
+
+					//Com_Printf("num2 %i, num1: %i, owner: %i, number: %i\n", es->otherEntityNum2, es->otherEntityNum, es->owner, es->number);
+					//if (mov_duelIsolation.integer && cg.predictedPlayerState.duelInProgress && (cg.predictedPlayerState.clientNum != es->otherEntityNum2) && (cg.predictedPlayerState.duelIndex != es->otherEntityNum2))
+					//break;
+					if (mov_duelIsolation.integer && cg.predictedPlayerState.duelInProgress && !CG_ProximityCheck(cg.playerCent->currentState.pos.trBase, es->origin) && !CG_ProximityCheck(cg_entities[cg.predictedPlayerState.duelIndex].currentState.pos.trBase, es->origin))
+						break;
+
 					if ( cg_entities[es->otherEntityNum2].currentState.eType == ET_NPC )
 					{
 						client = cg_entities[es->otherEntityNum2].npcClient;
@@ -2505,6 +2538,10 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 
 	case EV_SABER_CLASHFLARE:
 		DEBUGNAME("EV_SABER_CLASHFLARE");
+
+		//TODO duel isolation  otherEntityNum2?
+		//Com_Printf("^1SABER CLASH OTHERENTITYNUM: %i OTHERENTITYNUM2: %i CLIENTNUM: %i NUM: %i\n", es->otherEntityNum, es->otherEntityNum2, es->clientNum, es->number);
+
 		{
 			qboolean cullPass = qfalse;
 
@@ -2543,6 +2580,10 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 
 	case EV_SABER_UNHOLSTER:
 		DEBUGNAME("EV_SABER_UNHOLSTER");
+
+		if (mov_duelIsolation.integer && cg.predictedPlayerState.duelInProgress && (cg.predictedPlayerState.clientNum != es->number) && (cg.predictedPlayerState.duelIndex != es->number))
+			break; //test?
+
 		{
 			clientInfo_t *ci = NULL;
 
@@ -2717,6 +2758,20 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 		break;
 	case EV_PREDEFSOUND:
 		DEBUGNAME("EV_PREDEFSOUND");
+
+		if (mov_duelIsolation.integer && cg.predictedPlayerState.duelInProgress && !CG_ProximityCheck(cg.playerCent->currentState.pos.trBase, es->pos.trBase) && !CG_ProximityCheck(cg_entities[cg.predictedPlayerState.duelIndex].currentState.pos.trBase, es->pos.trBase))
+			break;
+		/*
+		if (cg.predictedPlayerState.duelInProgress && mov_duelIsolation.integer) {
+			Com_Printf("Our origin: %.0f, %.0f, %.0f, duelers origin: %.0f, %.0f, %.0f, Sounds origin: %.0f, %.0f, %.0f\n",
+				cg.playerCent->currentState.pos.trBase[0], cg.playerCent->currentState.pos.trBase[1], cg.playerCent->currentState.pos.trBase[2],
+				cg_entities[cg.predictedPlayerState.duelIndex].currentState.pos.trBase[0], cg_entities[cg.predictedPlayerState.duelIndex].currentState.pos.trBase[1], cg_entities[cg.predictedPlayerState.duelIndex].currentState.pos.trBase[2],
+				es->pos.trBase[0], es->pos.trBase[1], es->pos.trBase[2]);
+			if ((cg.playerCent->currentState.pos.trBase != es->pos.trBase) && (cg_entities[cg.predictedPlayerState.duelIndex].currentState.pos.trBase != es->pos.trBase))
+				return;//Dont play general sounds from non duelers if we are dueling and isolated
+		}
+		*/
+
 		{
 			int sID = -1;
 
@@ -2896,6 +2951,8 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 	//
 	case EV_PLAYER_TELEPORT_IN:
 		DEBUGNAME("EV_PLAYER_TELEPORT_IN");
+		if (mov_duelIsolation.integer && (es->clientNum < MAX_CLIENTS) && cg.predictedPlayerState.duelInProgress && (cg.predictedPlayerState.clientNum != es->clientNum) && (cg.predictedPlayerState.duelIndex != es->clientNum))
+			break;
 		{
 			trace_t tr;
 			vec3_t playerMins = {-15, -15, DEFAULT_MINS_2+8};
@@ -2927,6 +2984,8 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 
 	case EV_PLAYER_TELEPORT_OUT:
 		DEBUGNAME("EV_PLAYER_TELEPORT_OUT");
+		if (mov_duelIsolation.integer && (es->clientNum < MAX_CLIENTS) && cg.predictedPlayerState.duelInProgress && (cg.predictedPlayerState.clientNum != es->clientNum) && (cg.predictedPlayerState.duelIndex != es->clientNum))
+			break;
 		{
 			trace_t tr;
 			vec3_t playerMins = {-15, -15, DEFAULT_MINS_2+8};
@@ -2954,12 +3013,17 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 
 	case EV_ITEM_POP:
 		DEBUGNAME("EV_ITEM_POP");
+
+		//TODO duel isolation.. what is this btw
+
 		if (!(mov_soundDisable.integer & SDISABLE_TELESPAWN)) {
 			trap_S_StartSound (NULL, es->number, CHAN_AUTO, cgs.media.respawnSound );
 		}
 		break;
 	case EV_ITEM_RESPAWN:
 		DEBUGNAME("EV_ITEM_RESPAWN");
+		if (mov_duelIsolation.integer && cg.predictedPlayerState.duelInProgress) //Dont play respawn item sound if in duel
+			break;
 		cent->miscTime = cg.time;	// scale up from this
 		if (!(mov_soundDisable.integer & SDISABLE_TELESPAWN)) {
 			trap_S_StartSound (NULL, es->number, CHAN_AUTO, cgs.media.respawnSound );
@@ -3112,8 +3176,11 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 			}
 			else
 			{
-				alt = qfalse;
-				CG_MissileHitPlayer( es->weapon, position, dir, es->otherEntityNum, qfalse);
+				if (es->weapon == WP_BRYAR_PISTOL && es->saberInFlight) { //Its a grappling hook.
+					trap_FX_PlayEffectID(cgs.effects.grappleHitPlayer, position, dir, -1, -1);
+					return;
+				}
+				CG_MissileHitPlayer(es->weapon, position, dir, es->otherEntityNum, qfalse);
 			}
 
 			if (cg_ghoul2Marks.integer &&
@@ -3146,7 +3213,11 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 			}
 			else
 			{
-				alt = qfalse;
+				if (es->weapon == WP_BRYAR_PISTOL && es->saberInFlight) { //Its a grappling hook.
+					trap_FX_PlayEffectID(cgs.effects.grappleHitWall, position, dir, -1, -1);
+					return;
+				}
+
 				CG_MissileHitWall(es->weapon, 0, position, dir, IMPACTSOUND_DEFAULT, qfalse, 0);
 			}
 
@@ -3412,16 +3483,41 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 
 	case EV_GENERAL_SOUND:
 		DEBUGNAME("EV_GENERAL_SOUND");
-		if (es->saberEntityNum == TRACK_CHANNEL_2 || es->saberEntityNum == TRACK_CHANNEL_3
-			|| es->saberEntityNum == TRACK_CHANNEL_5)
-		{ //channels 2 and 3 are for speed and rage, 5 for sight
-			if ( cgs.gameSounds[ es->eventParm ] )
-			{
-				//CG_S_AddRealLoopingSound(es->number, es->pos.trBase, vec3_origin, cgs.gameSounds[ es->eventParm ] );
-				//does not work at all
-				trap_S_AddRealLoopingSound(es->number, es->pos.trBase, vec3_origin, cgs.gameSounds[ es->eventParm ] );
-			}
+
+		//See if its a sound that comes from origin of player
+		//Push, pull, etc.
+		//If so, see if it "matches" origin of us or duel opponent
+		//If not, dont play it..
+
+		//Com_Printf("num: %i, parm: %i\n", es->number, es->eventParm);
+
+		if (mov_duelIsolation.integer && cg.predictedPlayerState.duelInProgress &&
+			(es->eventParm != 33) && //Disgusting hack but theres no way to who a dropped saber belongs to?
+			!CG_ProximityCheck(cg.playerCent->currentState.pos.trBase, es->pos.trBase) &&
+			!CG_ProximityCheck(cg_entities[cg.predictedPlayerState.duelIndex].currentState.pos.trBase, es->pos.trBase))
+			break; //This can be improved a lot.. check saberEntitynum maybe?
+
+		/*
+		if (cg.predictedPlayerState.duelInProgress && mov_duelIsolation.integer) {
+			Com_Printf("Our origin: %.0f, %.0f, %.0f, duelers origin: %.0f, %.0f, %.0f, Sounds origin: %.0f, %.0f, %.0f\n",
+				cg.playerCent->currentState.pos.trBase[0], cg.playerCent->currentState.pos.trBase[1], cg.playerCent->currentState.pos.trBase[2],
+				cg_entities[cg.predictedPlayerState.duelIndex].currentState.pos.trBase[0], cg_entities[cg.predictedPlayerState.duelIndex].currentState.pos.trBase[1], cg_entities[cg.predictedPlayerState.duelIndex].currentState.pos.trBase[2],
+				es->pos.trBase[0], es->pos.trBase[1], es->pos.trBase[2]);
+			if ((cg.playerCent->currentState.pos.trBase != es->pos.trBase) && (cg_entities[cg.predictedPlayerState.duelIndex].currentState.pos.trBase != es->pos.trBase))
+				return;//Dont play general sounds from non duelers if we are dueling and isolated
 		}
+		*/
+
+		if (es->saberEntityNum == TRACK_CHANNEL_2 || es->saberEntityNum == TRACK_CHANNEL_3
+		|| es->saberEntityNum == TRACK_CHANNEL_5)
+	{ //channels 2 and 3 are for speed and rage, 5 for sight
+		if ( cgs.gameSounds[ es->eventParm ] )
+		{
+			//CG_S_AddRealLoopingSound(es->number, es->pos.trBase, vec3_origin, cgs.gameSounds[ es->eventParm ] );
+			//does not work at all
+			trap_S_AddRealLoopingSound(es->number, es->pos.trBase, vec3_origin, cgs.gameSounds[ es->eventParm ] );
+		}
+	}
 		else
 		{
 			if ( cgs.gameSounds[ es->eventParm ] ) {
@@ -3510,6 +3606,10 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 
 	case EV_ENTITY_SOUND:
 		DEBUGNAME("EV_ENTITY_SOUND");
+
+		if (mov_duelIsolation.integer && (es->clientNum < MAX_CLIENTS) && cg.predictedPlayerState.duelInProgress && (cg.predictedPlayerState.clientNum != es->clientNum) && (cg.predictedPlayerState.duelIndex != es->clientNum))
+			break;
+
 		if (mov_soundDisable.integer & SDISABLE_ENTITIES)
 			break;
 		//somewhat of a hack - weapon is the caller entity's index, trickedentindex is the proper sound channel
@@ -3557,6 +3657,10 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 	case EV_DEATH2:
 	case EV_DEATH3:
 		DEBUGNAME("EV_DEATHx");
+
+		if (mov_duelIsolation.integer && cg.predictedPlayerState.duelInProgress && (cg.predictedPlayerState.clientNum != es->number) && (cg.predictedPlayerState.duelIndex != es->number))
+			break;
+
 		if (!(mov_soundDisable.integer & SDISABLE_PAIN))
 			trap_S_StartSound( NULL, es->number, CHAN_VOICE, 
 				CG_CustomSound( es->number, va("*death%i.wav", event - EV_DEATH1 + 1) ) );
@@ -3602,6 +3706,8 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 
 	case EV_FORCE_DRAINED:
 		DEBUGNAME("EV_FORCE_DRAINED");
+		if (mov_duelIsolation.integer && (cg.predictedPlayerState.duelInProgress && (cg.predictedPlayerState.clientNum != es->owner && cg.predictedPlayerState.duelIndex != es->owner)))
+			break;
 		ByteToDir( es->eventParm, dir );
 		//FX_ForceDrained(position, dir);
 		if (!(mov_soundDisable.integer & SDISABLE_FORCE))
@@ -3618,6 +3724,10 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 
 	case EV_STARTLOOPINGSOUND:
 		DEBUGNAME("EV_STARTLOOPINGSOUND");
+
+		//TODO duel isolation
+		//Com_Printf("^1LOOPING SOUND OTHERENTITYNUM: %i OTHERENTITYNUM2: %i CLIENTNUM: %i NUM: %i TRICKEDINDEX %i\n", es->otherEntityNum, es->otherEntityNum2, es->clientNum, es->number, es->trickedentindex);
+
 		if ( cgs.gameSounds[ es->eventParm ] )
 		{
 			isnd = cgs.gameSounds[es->eventParm];

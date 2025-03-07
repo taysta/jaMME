@@ -1,2 +1,2 @@
 @echo off
-start jamme +set fs_game mme +set fs_extraGames "japlus japp"
+start jamme +set com_affinity 4 +set fs_game mme +set fs_extraGames "japlus japp japro" +set mme_renderWidth "0" +set mme_renderHeight "0" +exec render_settings +r_customWidth "1920" +r_customHeight "1080" +vid_restart

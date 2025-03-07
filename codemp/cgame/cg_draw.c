@@ -1262,7 +1262,7 @@ void CG_DrawHUD(centity_t	*cent)
 
 	if (cg.playerPredicted) {
 		//JAPRO - Clientside - Movement Keys Start
-		if (cg_movementKeys.integer)
+		if (cg_drawMovementKeys.integer)
 			CG_MovementKeys(cent);
 
 		//JAPRO - Clientside - Speedometer Start
@@ -1275,9 +1275,9 @@ void CG_DrawHUD(centity_t	*cent)
 			vec4_t hcolor;
 			float lineWidth;
 
-			if (!cg.crosshairColor[0] && !cg.crosshairColor[1] && !cg.crosshairColor[2]) { //default to white
+			if (!cg.crosshairColor[0] && !cg.crosshairColor[1] && !cg.crosshairColor[2]) { //default to pink
 				hcolor[0] = 1.0f;
-				hcolor[1] = 1.0f;
+				hcolor[1] = 0.0f;
 				hcolor[2] = 1.0f;
 				hcolor[3] = 1.0f;
 			} else {
@@ -1300,6 +1300,9 @@ void CG_DrawHUD(centity_t	*cent)
 		if (cg_raceTimer.integer && cg.japro.detected)
 			CG_RaceTimer();
 	}
+
+	if (!cg_drawHud.integer)
+		return;
 
 	if (cg_hudFiles.integer)
 	{
@@ -1430,46 +1433,48 @@ void CG_DrawHUD(centity_t	*cent)
 		} else {
 			score = cgs.clientinfo[cent->currentState.number].score;
 		}
-
-		//scoreStr = va("Score: %i", cgs.clientinfo[cg.snap->ps.clientNum].score);
-		if ( cgs.gametype == GT_DUEL )
-		{//A duel that requires more than one kill to knock the current enemy back to the queue
-			//show current kills out of how many needed
-			scoreStr = va("%s: %i/%i", CG_GetStringEdString("MP_INGAME", "SCORE"), score, cgs.fraglimit);
-		}
-		else if (0 && cgs.gametype < GT_TEAM )
-		{	// This is a teamless mode, draw the score bias.
-			scoreBias = score - cgs.scores1;
-			if (scoreBias == 0)
-			{	// We are the leader!
-				if (cgs.scores2 <= 0)
-				{	// Nobody to be ahead of yet.
-					Com_sprintf(scoreBiasStr, sizeof(scoreBiasStr), "");
-				}
-				else
-				{
-					scoreBias = score - cgs.scores2;
-					if (scoreBias == 0)
-					{
-						Com_sprintf(scoreBiasStr, sizeof(scoreBiasStr), " (Tie)");
+		if (cg_drawScore.integer) {
+			//scoreStr = va("Score: %i", cgs.clientinfo[cg.snap->ps.clientNum].score);
+			if ( cgs.gametype == GT_DUEL )
+			{//A duel that requires more than one kill to knock the current enemy back to the queue
+				//show current kills out of how many needed
+				scoreStr = va("%s: %i/%i", CG_GetStringEdString("MP_INGAME", "SCORE"), score, cgs.fraglimit);
+			}
+			else if (0 && cgs.gametype < GT_TEAM )
+			{	// This is a teamless mode, draw the score bias.
+				scoreBias = score - cgs.scores1;
+				if (scoreBias == 0)
+				{	// We are the leader!
+					if (cgs.scores2 <= 0)
+					{	// Nobody to be ahead of yet.
+						Com_sprintf(scoreBiasStr, sizeof(scoreBiasStr), "");
 					}
 					else
 					{
-						Com_sprintf(scoreBiasStr, sizeof(scoreBiasStr), " (+%d)", scoreBias);
+						scoreBias = score - cgs.scores2;
+						if (scoreBias == 0)
+						{
+							Com_sprintf(scoreBiasStr, sizeof(scoreBiasStr), " (Tie)");
+						}
+						else
+						{
+							Com_sprintf(scoreBiasStr, sizeof(scoreBiasStr), " (+%d)", scoreBias);
+						}
 					}
 				}
+				else // if (scoreBias < 0)
+				{	// We are behind!
+					Com_sprintf(scoreBiasStr, sizeof(scoreBiasStr), " (%d)", scoreBias);
+				}
+				scoreStr = va("%s: %i%s", CG_GetStringEdString("MP_INGAME", "SCORE"), score, scoreBiasStr);
 			}
-			else // if (scoreBias < 0)
-			{	// We are behind!
-				Com_sprintf(scoreBiasStr, sizeof(scoreBiasStr), " (%d)", scoreBias);
+			else
+			{	// Don't draw a bias.
+				scoreStr = va("%s: %i", CG_GetStringEdString("MP_INGAME", "SCORE"), score);
 			}
-			scoreStr = va("%s: %i%s", CG_GetStringEdString("MP_INGAME", "SCORE"), score, scoreBiasStr);
+		} else {
+			scoreStr = "";
 		}
-		else
-		{	// Don't draw a bias.
-			scoreStr = va("%s: %i", CG_GetStringEdString("MP_INGAME", "SCORE"), score);
-		}
-
 		menuHUD = Menus_FindByName("righthud");
 		Menu_Paint( menuHUD, qtrue );
 
@@ -2927,7 +2932,7 @@ static void CG_DrawMovementKeys( void ) {
 	float w1 = 0.0f, w2 = 0.0f, height = 0.0f;
 	int fontIndex = FONT_MEDIUM;
 
-	if ( cg_movementKeys.integer != 4 || !cg.snap ) //RAZTODO: works with demo playback??
+	if ( cg_drawMovementKeys.integer != 4 || !cg.snap ) //RAZTODO: works with demo playback??
 		return;
 
 	if ( cg.clientNum == cg.predictedPlayerState.clientNum && !cg.demoPlayback )
@@ -2978,18 +2983,18 @@ static void CG_DrawMovementKeys( void ) {
 		}
 	}
 
-	w1 = CG_Text_Width( "v W ^", cg_movementKeysSize.value, fontIndex );
-	w2 = CG_Text_Width( "A S D", cg_movementKeysSize.value, fontIndex );
-	height = CG_Text_Height( "A S D v W ^", cg_movementKeysSize.value, fontIndex );
+	w1 = CG_Text_Width( "v W ^", cg_drawMovementKeysScale.value, fontIndex );
+	w2 = CG_Text_Width( "A S D", cg_drawMovementKeysScale.value, fontIndex );
+	height = CG_Text_Height( "A S D v W ^", cg_drawMovementKeysScale.value, fontIndex );
 
 	Com_sprintf( str1, sizeof(str1), va( "^%cv ^%cW ^%c^", (cmd.upmove < 0) ? COLOR_RED : COLOR_WHITE,
 		(cmd.forwardmove > 0) ? COLOR_RED : COLOR_WHITE, (cmd.upmove > 0) ? COLOR_RED : COLOR_WHITE ) );
 	Com_sprintf( str2, sizeof(str2), va( "^%cA ^%cS ^%cD", (cmd.rightmove < 0) ? COLOR_RED : COLOR_WHITE,
 		(cmd.forwardmove < 0) ? COLOR_RED : COLOR_WHITE, (cmd.rightmove > 0) ? COLOR_RED : COLOR_WHITE ) );
 
-	CG_Text_Paint(cg.moveKeysPos[0] - Q_max(w1, w2 ) / 2.0f, cg.moveKeysPos[1], cg_movementKeysSize.value, colorWhite,
+	CG_Text_Paint(cg.moveKeysPos[0] - Q_max(w1, w2 ) / 2.0f, cg.moveKeysPos[1], cg_drawMovementKeysScale.value, colorWhite,
 				  str1, 0.0f, 0, ITEM_TEXTSTYLE_OUTLINED, fontIndex );
-	CG_Text_Paint(cg.moveKeysPos[0] - Q_max(w1, w2 ) / 2.0f, cg.moveKeysPos[1] + height, cg_movementKeysSize.value,
+	CG_Text_Paint(cg.moveKeysPos[0] - Q_max(w1, w2 ) / 2.0f, cg.moveKeysPos[1] + height, cg_drawMovementKeysScale.value,
 				  colorWhite, str2, 0.0f, 0, ITEM_TEXTSTYLE_OUTLINED, fontIndex );
 }
 
@@ -4716,6 +4721,13 @@ void CG_CenterPrint( const char *str, int y, int charWidth ) {
 	int		i = 0;
 	//[/BugFix19]
 
+	if (cg_centerHeight.value)
+		y = cg_centerHeight.value;
+	if (y < 0)
+		y = 0;
+	if (y > SCREEN_HEIGHT)
+		y = SCREEN_HEIGHT;
+
 	if( mov_fragsOnly.integer ) {
 		char sKilledStr[256];
 		trap_SP_GetStringTextString("MP_INGAME_KILLED_MESSAGE", sKilledStr, sizeof(sKilledStr));
@@ -4769,7 +4781,13 @@ static void CG_DrawCenterString( void ) {
 	float	x, y;
 	int		w, h;
 	float	*color;
-	const float scale = Q_max(cg_centerScale.value, 0.0f);
+	float	scale = cg_centerSize.value;//1.0; //0.5
+
+	if (scale < 0)
+		scale = 0;
+	else if (!scale || scale > 1)
+		scale = 1;
+
 	const float lineSpace = 6 * scale;
 
 	if ( !cg.centerPrintTime ) {
@@ -6815,6 +6833,9 @@ static void CG_DrawVote(void) {
 	if ( !cgs.voteTime )
 		return;
 
+	if (!cg_drawVote.integer)
+		return;
+
 	// play a talk beep whenever it is modified
 	if ( cgs.voteModified ) {
 		cgs.voteModified = qfalse;
@@ -7097,8 +7118,15 @@ static qboolean CG_DrawFollow(void) {
 	s = cgs.clientinfo[cg.snap->ps.clientNum].name;
 	CG_Text_Paint(320 - CG_Text_Width (s, 2.0f, FONT_MEDIUM)/2, 80, 2.0f, colorWhite, s, 0, 0, 0, FONT_MEDIUM);
 */
-	strcat(s, va(": %s", cgs.clientinfo[cg.playerCent->currentState.clientNum].name));
-	CG_Text_Paint(320 - CG_Text_Width (s, 0.7f, FONT_LARGE)/2, 1, 0.7f, colorWhite, s, 0, 0, ITEM_TEXTSTYLE_SHADOWED, FONT_LARGE);
+	if (cg_newFollowText.integer == 1) {
+		s = cgs.clientinfo[cg.snap->ps.clientNum].name;
+		CG_Text_Paint(4, 12, 1.0f, colorWhite, s, 0, 0, 0, FONT_MEDIUM);//japro - Move spectated clients name to top left corner of screen like ql
+	}
+	else if (cg_newFollowText.integer < 1) {
+		strcat(s, va(": %s", cgs.clientinfo[cg.playerCent->currentState.clientNum].name));
+		CG_Text_Paint(320 - CG_Text_Width(s, 0.7f, FONT_LARGE) / 2, 1, 0.7f, colorWhite, s, 0, 0, ITEM_TEXTSTYLE_SHADOWED, FONT_LARGE);
+	}
+
 	return qtrue;
 }
 
@@ -7878,7 +7906,7 @@ static CGAME_INLINE void CG_ChatBox_DrawStrings(void) {
 	int i = 0;
 	float x = 44.0f*cgs.widthRatioCoef;
 	float y = cg.scoreBoardShowing ? 475 : cg_chatBoxHeight.integer;
-	float fontScale = 0.65f;
+	float fontScale = 0.65f * cg_chatBoxSize.value;
 
 	if (!cg_chatBox.integer) {
 		return;
@@ -9359,7 +9387,7 @@ static void CG_MovementKeys(centity_t *cent)
 	int moveDir;
 	float w, h, x, y, xOffset, yOffset;
 
-	if (!cg.snap || cg_movementKeys.integer == 4)
+	if (!cg.snap || cg_drawMovementKeys.integer == 4)
 		return;
 
 	ps = &cg.predictedPlayerState; //&cg.snap->ps;
@@ -9429,20 +9457,29 @@ static void CG_MovementKeys(centity_t *cent)
 		}
 	}
 
-	if(cg_movementKeys.integer == 2)
+	if(cg_drawMovementKeys.integer == 1)
 	{
-		w = (8*cg_movementKeysSize.value)*cgs.widthRatioCoef;
-		h = 8*cg_movementKeysSize.value;
+		w = 16*cg_drawMovementKeysScale.value;
+		h = 16*cg_drawMovementKeysScale.value;
+		x = cg.moveKeysPos[0];
+		y = cg.moveKeysPos[1];
+	}
+	else if(cg_drawMovementKeys.integer == 2)
+	{
+		w = (8*cg_drawMovementKeysScale.value)*cgs.widthRatioCoef;
+		h = 8*cg_drawMovementKeysScale.value;
 		x = SCREEN_WIDTH / 2 - w*1.5;
 		y = SCREEN_HEIGHT / 2 - h*1.5;
-	}else{
-		w = (16*cg_movementKeysSize.value)*cgs.widthRatioCoef;
-		h = 16*cg_movementKeysSize.value;
+	}
+	else
+	{
+		w = (16*cg_drawMovementKeysScale.value)*cgs.widthRatioCoef;
+		h = 16*cg_drawMovementKeysScale.value;
 		x = SCREEN_WIDTH - (SCREEN_WIDTH - cg.moveKeysPos[0]) * cgs.widthRatioCoef;
 		y = cg.moveKeysPos[1];
 	}
 
-	if(cg_movementKeys.integer > 1){
+	if(cg_drawMovementKeys.integer > 1){
 		if (cmd.upmove < 0)
 			CG_DrawPic( w*2 + x, y, w, h, cgs.media.keyCrouchOnShader2 );
 		if (cmd.upmove > 0)
@@ -9461,7 +9498,7 @@ static void CG_MovementKeys(centity_t *cent)
 			CG_DrawPic(w * 2 + x, 2 * h + y, w, h, cgs.media.keyAltOn2);
 
 	}
-	else if(cg_movementKeys.integer == 1){
+	else if(cg_drawMovementKeys.integer == 1){
 		if (cmd.upmove < 0)
 			CG_DrawPic( w*2 + x, y, w, h, cgs.media.keyCrouchOnShader );
 		else
@@ -9486,15 +9523,14 @@ static void CG_MovementKeys(centity_t *cent)
 			CG_DrawPic( w*2 + x, h + y, w, h, cgs.media.keyRightOnShader );
 		else
 			CG_DrawPic( w*2 + x, h + y, w, h, cgs.media.keyRightOffShader );
-		if (cmd.buttons & BUTTON_ATTACK)
+		if (cmd.buttons & BUTTON_ATTACK) //only show when pressed
 			CG_DrawPic(w * 3 + x, y, w, h, cgs.media.keyAttackOn);
-		else
-			CG_DrawPic(w * 3 + x, y, w, h, cgs.media.keyAttackOff);
-
-		if (cmd.buttons & BUTTON_ALT_ATTACK)
+//		else
+//			CG_DrawPic(w * 3 + x, y, w, h, cgs.media.keyAttackOff);
+		if (cmd.buttons & BUTTON_ALT_ATTACK) //only show when pressed
 			CG_DrawPic(w * 3 + x, h + y, w, h, cgs.media.keyAltOn);
-		else
-			CG_DrawPic(w * 3 + x, h + y, w, h, cgs.media.keyAltOff);
+//		else
+//			CG_DrawPic(w * 3 + x, h + y, w, h, cgs.media.keyAltOff);
 	}
 }
 
@@ -9516,7 +9552,7 @@ static void CG_JumpHeight(centity_t *cent)
 
 	if ((cg.lastJumpHeightTime > cg.time - 1500) && (cg.lastJumpHeight > 0.0f)) {
 		Com_sprintf(jumpHeightStr, sizeof(jumpHeightStr), "%.1f", cg.lastJumpHeight);
-		CG_Text_Paint(speedometerXPos * cgs.widthRatioCoef, cg_speedometerY.integer, cg_speedometerSize.value, colorTable[CT_WHITE], jumpHeightStr, 0.0f, 0, ITEM_ALIGN_RIGHT|ITEM_TEXTSTYLE_OUTLINED, FONT_NONE);
+		CG_Text_Paint(speedometerXPos, cg_speedometerY.integer, cg_speedometerSize.value, colorTable[CT_WHITE], jumpHeightStr, 0.0f, 0, ITEM_ALIGN_RIGHT|ITEM_TEXTSTYLE_OUTLINED, FONT_NONE);
 	}
 
 	speedometerXPos += 42;
@@ -9550,7 +9586,7 @@ static void CG_JumpDistance( void )
 
 	if ((cg.lastJumpDistanceTime > cg.time - 1500) && (cg.lastJumpDistance > 0.0f)) {
 		Com_sprintf(jumpDistanceStr, sizeof(jumpDistanceStr), "%.1f", cg.lastJumpDistance);
-		CG_Text_Paint(speedometerXPos * cgs.widthRatioCoef, cg_speedometerY.integer, cg_speedometerSize.value, colorTable[CT_WHITE], jumpDistanceStr, 0.0f, 0, ITEM_ALIGN_RIGHT|ITEM_TEXTSTYLE_OUTLINED, FONT_NONE);
+		CG_Text_Paint(speedometerXPos, cg_speedometerY.integer, cg_speedometerSize.value, colorTable[CT_WHITE], jumpDistanceStr, 0.0f, 0, ITEM_ALIGN_RIGHT|ITEM_TEXTSTYLE_OUTLINED, FONT_NONE);
 	}
 
 	speedometerXPos += 52;
@@ -9597,7 +9633,7 @@ static void CG_DrawYawSpeed( void ) {
 			Com_sprintf(yawStr, sizeof(yawStr), "^3%03i", (int)(yaw + 0.5f)); //added 8 whitespaces idk how much to add - fixme
 		else
 			Com_sprintf(yawStr, sizeof(yawStr), "%03i", (int)(yaw + 0.5f)); //added 8 whitespaces idk how much to add - fixme
-		CG_Text_Paint(speedometerXPos * cgs.widthRatioCoef, cg_speedometerY.integer, cg_speedometerSize.value, colorTable[CT_WHITE], yawStr, 0.0f, 0, ITEM_ALIGN_RIGHT | ITEM_TEXTSTYLE_OUTLINED, FONT_NONE);
+		CG_Text_Paint(speedometerXPos, cg_speedometerY.integer, cg_speedometerSize.value, colorTable[CT_WHITE], yawStr, 0.0f, 0, ITEM_ALIGN_RIGHT | ITEM_TEXTSTYLE_OUTLINED, FONT_NONE);
 	}
 
 	cg.lastYawSpeed = cg.playerCent->lerpAngles[YAW];
@@ -9614,7 +9650,7 @@ static void CG_DrawVerticalSpeed(void) {
 
 	if (vertspeed) {
 		Com_sprintf(speedStr5, sizeof(speedStr5), "%.0f", vertspeed);
-		CG_Text_Paint(speedometerXPos * cgs.widthRatioCoef, cg_speedometerY.integer, cg_speedometerSize.value, colorWhite, speedStr5, 0.0f, 0, ITEM_ALIGN_RIGHT | ITEM_TEXTSTYLE_OUTLINED, FONT_NONE);
+		CG_Text_Paint(speedometerXPos, cg_speedometerY.integer, cg_speedometerSize.value, colorWhite, speedStr5, 0.0f, 0, ITEM_ALIGN_RIGHT | ITEM_TEXTSTYLE_OUTLINED, FONT_NONE);
 	}
 
 	speedometerXPos += 42;
@@ -9902,20 +9938,20 @@ static void CG_Speedometer(void)
 	if (!(cg_speedometer.integer & SPEEDOMETER_KPH) && !(cg_speedometer.integer & SPEEDOMETER_MPH))
 	{
 		Com_sprintf(speedStr, sizeof(speedStr), "   %.0f", floorf(currentSpeed + 0.5f));
-		CG_Text_Paint(speedometerXPos*cgs.widthRatioCoef, cg_speedometerY.integer, cg_speedometerSize.value, colorWhite, accelStr, 0.0f, 0, ITEM_ALIGN_RIGHT|ITEM_TEXTSTYLE_OUTLINED, FONT_NONE);
-		CG_Text_Paint(speedometerXPos  * cgs.widthRatioCoef, cg_speedometerY.value, cg_speedometerSize.value, colorSpeed, speedStr, 0.0f, 0, ITEM_ALIGN_LEFT|ITEM_TEXTSTYLE_OUTLINED, FONT_NONE);
+		CG_Text_Paint(speedometerXPos, cg_speedometerY.integer, cg_speedometerSize.value, colorWhite, accelStr, 0.0f, 0, ITEM_ALIGN_RIGHT|ITEM_TEXTSTYLE_OUTLINED, FONT_NONE);
+		CG_Text_Paint(speedometerXPos, cg_speedometerY.value, cg_speedometerSize.value, colorSpeed, speedStr, 0.0f, 0, ITEM_ALIGN_LEFT|ITEM_TEXTSTYLE_OUTLINED, FONT_NONE);
 	}
 	else if (cg_speedometer.integer & SPEEDOMETER_KPH)
 	{
 		Com_sprintf(speedStr2, sizeof(speedStr2), "   %.1f", currentSpeed * 0.05);
-		CG_Text_Paint(speedometerXPos*cgs.widthRatioCoef, cg_speedometerY.value, cg_speedometerSize.value, colorWhite, accelStr2, 0.0f, 0, ITEM_ALIGN_RIGHT|ITEM_TEXTSTYLE_OUTLINED, FONT_NONE);
-		CG_Text_Paint(speedometerXPos*cgs.widthRatioCoef, cg_speedometerY.value, cg_speedometerSize.value, colorSpeed, speedStr2, 0.0f, 0, ITEM_ALIGN_RIGHT|ITEM_TEXTSTYLE_OUTLINED, FONT_NONE);
+		CG_Text_Paint(speedometerXPos, cg_speedometerY.value, cg_speedometerSize.value, colorWhite, accelStr2, 0.0f, 0, ITEM_ALIGN_RIGHT|ITEM_TEXTSTYLE_OUTLINED, FONT_NONE);
+		CG_Text_Paint(speedometerXPos, cg_speedometerY.value, cg_speedometerSize.value, colorSpeed, speedStr2, 0.0f, 0, ITEM_ALIGN_RIGHT|ITEM_TEXTSTYLE_OUTLINED, FONT_NONE);
 	}
 	else if (cg_speedometer.integer & SPEEDOMETER_MPH)
 	{
 		Com_sprintf(speedStr3, sizeof(speedStr3), "   %.1f", currentSpeed * 0.03106855);
-		CG_Text_Paint(speedometerXPos*cgs.widthRatioCoef, cg_speedometerY.value, cg_speedometerSize.value, colorWhite, accelStr3, 0.0f, 0, ITEM_ALIGN_RIGHT|ITEM_TEXTSTYLE_OUTLINED, FONT_NONE);
-		CG_Text_Paint(speedometerXPos*cgs.widthRatioCoef, cg_speedometerY.value, cg_speedometerSize.value, colorSpeed, speedStr3, 0.0f, 0, ITEM_ALIGN_RIGHT|ITEM_TEXTSTYLE_OUTLINED, FONT_NONE);
+		CG_Text_Paint(speedometerXPos, cg_speedometerY.value, cg_speedometerSize.value, colorWhite, accelStr3, 0.0f, 0, ITEM_ALIGN_RIGHT|ITEM_TEXTSTYLE_OUTLINED, FONT_NONE);
+		CG_Text_Paint(speedometerXPos, cg_speedometerY.value, cg_speedometerSize.value, colorSpeed, speedStr3, 0.0f, 0, ITEM_ALIGN_RIGHT|ITEM_TEXTSTYLE_OUTLINED, FONT_NONE);
 	}
 	speedometerXPos += 52;
 
@@ -9995,7 +10031,7 @@ static void CG_Speedometer(void)
 		if ((cg.lastGroundTime > cg.time - 1500) && (cg_speedometer.integer & SPEEDOMETER_GROUNDSPEED)) {
 			if (cg.lastGroundSpeed) {
 				Com_sprintf(speedStr4, sizeof(speedStr4), "%.0f", cg.lastGroundSpeed);
-				CG_Text_Paint(speedometerXPos * cgs.widthRatioCoef, cg_speedometerY.value, cg_speedometerSize.value, colorGroundSpeed, speedStr4, 0.0f, 0, ITEM_ALIGN_LEFT|ITEM_TEXTSTYLE_OUTLINED, FONT_NONE);
+				CG_Text_Paint(speedometerXPos, cg_speedometerY.value, cg_speedometerSize.value, colorGroundSpeed, speedStr4, 0.0f, 0, ITEM_ALIGN_LEFT|ITEM_TEXTSTYLE_OUTLINED, FONT_NONE);
 			}
 		}
 		speedometerXPos += 52;

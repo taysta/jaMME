@@ -36,7 +36,7 @@ static ID_INLINE int GetScoreOffset( void ) {
 }
 
 static void CG_ParseScores( void ) {
-	if (cg.japlus.detected && cg_japlusFix.integer) {
+	if ((cg.japlus.detected || cg.japro.detected) && cg_japlusFix.integer) {
 		int		i=0, scoreIndex=0, powerups=0, readScores=0;
 		int		scoreOffset = GetScoreOffset();
 
@@ -285,6 +285,10 @@ void CG_ParseServerinfo( void ) {
 		CG_Printf("MakerMod");
 	} else if (!Q_stricmpn(gamename, "Lugormod", 8)) {
 		CG_Printf("Lugormod");
+	} else if (!Q_stricmpn(gamename, "japro", 5)) {
+		cg.japro.detected = qtrue;
+		cg.japlus.SSF = SSF_SCOREBOARD_KD;
+		CG_Printf("jaPRO demo detected\n");
 	} else {
 		CG_Printf("Base/Unknown");
 	}

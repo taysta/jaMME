@@ -239,7 +239,7 @@ static void CG_DrawClientScore( int y, score_t *score, float *color, float fade,
 			}
 			else
 			{
-				if (cg.japlus.detected && cg_japlusFix.integer) {
+				if ((cg.japlus.detected || cg.japro.detected) && cg_japlusFix.integer) {
 					CG_Text_Paint (SB_SCORE_X - CG_Text_Width( va("%i/%i", score->score, score->deaths), 1.0f * scale, FONT_SMALL ) / 2, y, 1.0f * scale, colorWhite, va("%i/%i", score->score, score->deaths),0, 0, ITEM_TEXTSTYLE_OUTLINED, FONT_SMALL );
 				} else {
 					CG_Text_Paint (SB_SCORE_X - CG_Text_Width( va("%i", score->score), 1.0f * scale, FONT_SMALL ) / 2, y, 1.0f * scale, colorWhite, va("%i", score->score),0, 0, ITEM_TEXTSTYLE_OUTLINED, FONT_SMALL );

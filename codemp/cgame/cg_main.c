@@ -728,11 +728,11 @@ static void CG_StrafeHelperActiveColorChange(void) {
 }
 
 static void CG_SetMovementKeysPos( void ) {
-	if ( sscanf( cg_movementKeysPos.string, "%f %f", &cg.moveKeysPos[0], &cg.moveKeysPos[1] ) != 2 ) {
-        if(cg_movementKeys.integer == 4) {
+	if ( sscanf( cg_drawMovementKeysPos.string, "%f %f", &cg.moveKeysPos[0], &cg.moveKeysPos[1] ) != 2 ) {
+        if(cg_drawMovementKeys.integer == 4) {
             cg.moveKeysPos[0] = (SCREEN_WIDTH / 2);
             cg.moveKeysPos[1] = (SCREEN_HEIGHT / 2);
-        } else if (cg_movementKeys.integer){
+        } else if (cg_drawMovementKeys.integer){
             cg.moveKeysPos[0] = 465;
             cg.moveKeysPos[1] = 432;
         }
@@ -1166,6 +1166,8 @@ static void CG_RegisterSounds( void ) {
 		cgs.media.rgbSaberGlow5Shader	= trap_R_RegisterShaderNoMip( "gfx/effects/sabers/RGBGlow" );
 	cgs.media.rgbSaberCore5Shader		= trap_R_RegisterShaderNoMip( "gfx/effects/sabers/RGBcore5" );
 	cgs.media.rgbSaberTrail5Shader		= trap_R_RegisterShaderNoMip( "gfx/effects/sabers/swordTrail" );
+
+	cgs.media.grappleShader = trap_R_RegisterShader("gfx/effects/grapple_line");//japro
 
 	//Black
 	cgs.media.blackSaberGlowShader		= trap_R_RegisterShaderNoMip( "gfx/effects/sabers/blackglow" );
@@ -1767,6 +1769,14 @@ static void CG_RegisterGraphics( void ) {
 
 	cgs.effects.mDisruptorDeathSmoke = trap_FX_RegisterEffect("disruptor/death_smoke");
 
+	//japro grapple
+	if (cg.japro.detected) {
+		cgs.effects.grappleHitWall = trap_FX_RegisterEffect("effects/grapple/hit_wall.efx");
+		cgs.effects.grappleHitWall = trap_FX_RegisterEffect("effects/grapple/hit_player.efx");
+		cgs.media.grappleModel = trap_R_RegisterModel("models/items/grapple.md3");//Grapple model
+	}
+
+
 	for ( i = 0 ; i < NUM_CROSSHAIRS ; i++ ) {
 		cgs.media.crosshairShader[i] = trap_R_RegisterShaderNoMip( va("gfx/2d/crosshair%c", 'a'+i) );
 	}
@@ -1960,6 +1970,37 @@ Ghoul2 Insert End
 	cgs.media.viewPainShader_ShieldsAndHealth	= trap_R_RegisterShader( "gfx/mp/dmgshader_shieldsandhealth" );
 
     //jaPRO mod assets - start
+	//japro cosmetics
+	cgs.media.cosmetics.pumpkin = trap_R_RegisterModel("models/players/hats/pumpkin.md3");
+	cgs.media.cosmetics.cap = trap_R_RegisterModel("models/players/hats/cap.md3");
+	cgs.media.cosmetics.fedora = trap_R_RegisterModel("models/players/hats/fedora.md3");
+	cgs.media.cosmetics.kringekap = trap_R_RegisterModel("models/players/hats/cringe.md3");
+	cgs.media.cosmetics.sombrero = trap_R_RegisterModel("models/players/hats/sombrero.md3");
+	cgs.media.cosmetics.tophat = trap_R_RegisterModel("models/players/hats/tophat.md3");
+	cgs.media.cosmetics.mask = trap_R_RegisterModel("models/players/hats/mask.md3");
+	cgs.media.cosmetics.gradcap = trap_R_RegisterModel("models/players/hats/gradcap.md3");
+	cgs.media.cosmetics.fedora1 = trap_R_RegisterModel("models/players/hats/fedora1.md3");
+	cgs.media.cosmetics.fedora2 = trap_R_RegisterModel("models/players/hats/fedora2.md3");
+	cgs.media.cosmetics.fedora3 = trap_R_RegisterModel("models/players/hats/fedora3.md3");
+	cgs.media.cosmetics.fedora4 = trap_R_RegisterModel("models/players/hats/fedora4.md3");
+	cgs.media.cosmetics.headcrab = trap_R_RegisterModel("models/players/hats/headcrab.md3");
+	cgs.media.cosmetics.vadercape = trap_R_RegisterModel("models/players/hats/vadercape.md3");
+	cgs.media.cosmetics.yodacape = trap_R_RegisterModel("models/players/hats/yodacape.md3");
+	cgs.media.cosmetics.horns = trap_R_RegisterModel("models/players/hats/horns.md3");
+	cgs.media.cosmetics.metalhelm = trap_R_RegisterModel("models/players/hats/metalhelm.md3");
+	cgs.media.cosmetics.afro = trap_R_RegisterModel("models/players/hats/afro.md3");
+	cgs.media.cosmetics.ak47 = trap_R_RegisterModel("models/players/hats/ak47.md3");
+	cgs.media.cosmetics.bucket = trap_R_RegisterModel("models/players/hats/bucket.md3");
+	cgs.media.cosmetics.crowbar = trap_R_RegisterModel("models/players/hats/crowbar.md3");
+	cgs.media.cosmetics.crown = trap_R_RegisterModel("models/players/hats/crown.md3");
+	cgs.media.cosmetics.royalcape = trap_R_RegisterModel("models/players/hats/royalcape.md3");
+	cgs.media.cosmetics.beard = trap_R_RegisterModel("models/players/hats/beard.md3");
+	cgs.media.cosmetics.grogucape = trap_R_RegisterModel("models/players/hats/grogucape.md3");
+	cgs.media.cosmetics.plaguemask = trap_R_RegisterModel("models/players/hats/plaguemask.md3");
+	cgs.media.cosmetics.glasses = trap_R_RegisterModel("models/players/hats/glasses.md3");
+	cgs.media.cosmetics.mario = trap_R_RegisterModel("models/players/hats/mario.md3");
+	cgs.media.cosmetics.rpg = trap_R_RegisterModel("models/players/hats/rpg.md3");
+
     //Movement Keys - Start
     cgs.media.keyCrouchOffShader	= trap_R_RegisterShaderNoMip ( "gfx/hud/keys/crouch_off" );
     cgs.media.keyCrouchOnShader		= trap_R_RegisterShaderNoMip ( "gfx/hud/keys/crouch_on" );

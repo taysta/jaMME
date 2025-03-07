@@ -2471,6 +2471,226 @@ static void CG_DistortionTrail( centity_t *cent )
 }
 */
 
+void CG_GrappleEndpoint(centity_t* ent, vec3_t startPos) {
+	refEntity_t		model;
+	memset(&model, 0, sizeof(model));
+
+	ent->currentState.angles[0] = -ent->currentState.angles[0];
+	ent->currentState.angles[1] = -ent->currentState.angles[1];
+	ent->currentState.angles[2] = -ent->currentState.angles[2];
+
+	VectorMA(startPos, -4, ent->currentState.angles, startPos);
+
+	model.reType = RT_MODEL;
+	VectorCopy(startPos, model.lightingOrigin);
+	VectorCopy(startPos, model.origin);
+
+	model.hModel = cgs.media.grappleModel;
+
+	if (ent->currentState.apos.trType != TR_INTERPOLATE) {
+		if (VectorNormalize2(ent->currentState.pos.trDelta, model.axis[0]) == 0) {
+			VectorNormalize2(ent->currentState.angles, model.axis[0]); //Its hit the wall.
+		}
+
+		if (ent->currentState.pos.trType != TR_STATIONARY) { // spin as it moves
+			if (ent->currentState.eFlags & EF_MISSILE_STICK)
+				RotateAroundDirection(model.axis, cg.time * 0.5f);//Did this so regular missiles don't get broken
+			else
+				RotateAroundDirection(model.axis, cg.time * 0.25f);//JFM:FLOAT FIX
+		}
+		else {
+			if (ent->currentState.eFlags & EF_MISSILE_STICK)
+				RotateAroundDirection(model.axis, (float)ent->currentState.pos.trTime * 0.5f);
+			else
+				RotateAroundDirection(model.axis, (float)ent->currentState.time);
+		}
+	}
+	else
+		AnglesToAxis(ent->lerpAngles, model.axis);
+
+	trap_R_AddRefEntityToScene(&model);
+}
+
+void CG_GrappleStartpoint(centity_t* ent, vec3_t startPos) {
+	refEntity_t		model;
+	memset(&model, 0, sizeof(model));
+
+
+	model.reType = RT_SABER_GLOW;
+	VectorCopy(startPos, model.lightingOrigin);
+	VectorCopy(startPos, model.origin);
+
+	model.customShader = cgs.media.redSaberGlowShader;
+	model.shaderRGBA[0] = model.shaderRGBA[1] = model.shaderRGBA[2] = model.shaderRGBA[3] = 0xff;
+
+	//model.renderfx;
+
+	//AnglesToAxis( ent->currentState.apos.trBase, model.axis );
+
+
+	// convert direction of travel into axis
+
+	//AnglesToAxis( ent->currentState.angles, model.axis );
+
+	//model.hModel = cgs.media.grappleModel;
+
+	trap_R_AddRefEntityToScene(&model);
+
+
+}
+
+void CG_GrappleTrail(centity_t* ent) { //this crashes
+	vec3_t			color;//, angles;
+	entityState_t* es;// *ees;
+	centity_t* enemy;
+	//	vec3_t			*temp, temp2, temp3;
+	refEntity_t		beam;
+	clientInfo_t* ci;
+
+	es = &ent->currentState;
+
+	memset(&beam, 0, sizeof(beam));
+
+	/*
+	if ( es->otherEntityNum >= 0 && es->otherEntityNum < cg.snap->numEntities ) {
+		if ( es->otherEntityNum == cg.predictedPlayerState.clientNum ) {
+			Com_Printf("1\n");
+			VectorCopy( cg.predictedPlayerState.origin, beam.oldorigin );
+		} else {
+			Com_Printf("2\n");
+			enemy = &cg_entities[ es->otherEntityNum ];
+			ees = &enemy->currentState;
+			BG_EvaluateTrajectory( &ees->pos, cg.time, beam.oldorigin );
+		}
+	} else {
+	*/
+	//Com_Printf("3\n");
+	VectorCopy(ent->lerpOrigin, beam.oldorigin);
+	//}
+
+	//we need moar japro servers in the world
+	if (cg_entities[cg.clientNum].currentState.bolt1 == 1) {
+		return; //assuming we'll never grapple in a duel
+	}
+
+	if (es->clientNum >= 0 && es->clientNum < MAX_CLIENTS) {
+		mdxaBone_t	boltMatrix;
+		vec3_t		G2Angles, handPos;
+
+
+
+#if 0
+		{//Raz: Grapple
+			int			clientNum = (cent->currentState.otherEntityNum == cg.snap->ps.clientNum) ? cg.predictedPlayerState.clientNum : cent->currentState.otherEntityNum;
+			vec3_t		rHandPos;
+			mdxaBone_t	boltMatrix;
+			vec3_t pos;
+
+			//Don't show grapple in duels
+			if (cg.predictedPlayerState.duelInProgress)
+				return;
+
+			cg_entities[clientNum].bolt1 = s1->number;
+
+			trap_G2API_GetBoltMatrix(cg_entities[clientNum].ghoul2, 0, cgs.clientinfo[clientNum].bolt_rhand, &boltMatrix, cg_entities[clientNum].turAngles, cg_entities[clientNum].lerpOrigin, cg.time, cgs.gameModels, cg_entities[clientNum].modelScale);
+
+			rHandPos[0] = boltMatrix.matrix[0][3];
+			rHandPos[1] = boltMatrix.matrix[1][3];
+			rHandPos[2] = boltMatrix.matrix[2][3];
+
+			demoNowTrajectory(&s1->pos, pos);
+
+			CG_TestLine(rHandPos, pos, 1, 6, 1);
+			return;
+		}
+#endif
+
+
+		enemy = &cg_entities[es->clientNum];
+		if (enemy->ghoul2) {
+			//VectorSet(G2Angles, 0, pm->ps->viewangles[YAW], 0);
+			//trap_G2API_GetBoltMatrix(enemy->ghoul2, 0, 1, &boltMatrix, G2Angles, enemy->currentState.pos.trBase, enemy->currentState.apos.trTime, NULL, enemy->modelScale); //crash fixme loda japro
+			trap_G2API_GetBoltMatrix(cg_entities[es->clientNum].ghoul2, 0, cgs.clientinfo[es->clientNum].bolt_rhand, &boltMatrix, cg_entities[es->clientNum].turAngles, cg_entities[es->clientNum].lerpOrigin, cg.time, cgs.gameModels, cg_entities[es->clientNum].modelScale);
+			//trap_G2API_GetBoltMatrix(cent->ghoul2, 0, newBolt, &matrix, cent->lerpAngles, cent->lerpOrigin, cg.time, cgs.gameModels, cent->modelScale);
+			handPos[0] = boltMatrix.matrix[0][3];
+			handPos[1] = boltMatrix.matrix[1][3];
+			handPos[2] = boltMatrix.matrix[2][3];
+			VectorCopy(handPos, beam.origin);
+		}
+		else {
+			VectorCopy(enemy->currentState.pos.trBase, beam.origin);
+			beam.origin[2] += 24;
+
+		}
+	}
+	else {
+		return;//idk
+	}
+
+	ent->trailTime = cg.time;
+
+	beam.radius = 1;
+
+	beam.reType = RT_LINE;//RT_RAIL_CORE;
+	beam.customShader = cgs.media.grappleShader;
+	//beam.customShader = cgs.media.grappleShader;//cgs.media.railCoreShader;
+
+	//beam.shaderTexCoord[0] = 0.1f;
+	//beam.shaderTexCoord[1] = 1.0f;
+
+
+	ci = &cgs.clientinfo[es->clientNum];
+
+	//if( cgs.valkyrMode )
+	//CG_GetTrippyColor( es->clientNum * 700, 3000, color );
+	//else
+	//VectorCopy( ci->color, color );
+
+	color[0] = 1;
+	color[1] = 0;
+	color[2] = 0;
+	beam.shaderRGBA[0] = color[0] * 255;
+	beam.shaderRGBA[1] = color[1] * 192;
+	beam.shaderRGBA[2] = color[2] * 192;
+	beam.shaderRGBA[3] = 0xff;
+
+	trap_R_AddRefEntityToScene(&beam);
+
+
+	CG_GrappleEndpoint(ent, beam.oldorigin);
+	CG_GrappleStartpoint(ent, beam.origin);
+	return;
+
+	/*
+	VectorCopy( beam.oldorigin, temp2 );
+
+	memset (&beam, 0, sizeof(beam));
+	beam.reType = RT_SPRITE;
+	beam.radius = 10 + crandom();
+
+	angles[YAW] = 0;
+	angles[PITCH] = 0;
+	angles[ROLL] = crandom() * 10;
+	AnglesToAxis( angles, beam.axis );
+
+	beam.customShader = cgs.media.viewPainShader;//cgs.media.grapple_flare;
+
+	VectorSubtract( temp2, cg.refdef.vieworg, temp3 );
+	VectorNormalize( temp3 );
+	VectorScale( temp3, 16, temp3 );
+	VectorSubtract( temp2, temp3, beam.origin );
+	VectorCopy( beam.origin, beam.oldorigin);
+
+	trap->R_AddRefEntityToScene( &beam );
+
+	// add dynamic light
+	trap->R_AddLightToScene( temp2, 50 + crandom()*2, color[0], color[1] * .5, color[2] );
+
+
+	//CG_TestLine(beam.origin, beam.oldorigin, 50, 0x0000ff, 2);
+	*/
+}
+
 /*
 ===============
 CG_Missile
@@ -2486,7 +2706,7 @@ static void CG_Missile( centity_t *cent ) {
 		return;
 
 	s1 = &cent->currentState;
-
+#if 0
 	if ( s1->weapon == /*WP_BRYAR_PISTOL*/cg_grappleFix.integer && cg.japlus.detected && cg_grappleFix.integer)
 	{
 		if ( s1->generic1 )
@@ -2523,6 +2743,40 @@ static void CG_Missile( centity_t *cent ) {
 		}
 		//[/Grapple]
 	}
+#endif
+
+	//japro
+	if (cg.japlus.detected && s1->weapon == WP_STUN_BATON)
+	{
+		int			clientNum = (cent->currentState.otherEntityNum == cg.snap->ps.clientNum) ? cg.predictedPlayerState.clientNum : cent->currentState.otherEntityNum;
+		vec3_t		rHandPos;
+		mdxaBone_t	boltMatrix;
+		vec3_t pos;
+
+		//Don't show grapple in duels
+		if (cg.predictedPlayerState.duelInProgress)
+			return;
+
+		cg_entities[clientNum].bolt1 = s1->number;
+
+		trap_G2API_GetBoltMatrix(cg_entities[clientNum].ghoul2, 0, cgs.clientinfo[clientNum].bolt_rhand, &boltMatrix, cg_entities[clientNum].turAngles, cg_entities[clientNum].lerpOrigin, cg.time, cgs.gameModels, cg_entities[clientNum].modelScale);
+
+		rHandPos[0] = boltMatrix.matrix[0][3];
+		rHandPos[1] = boltMatrix.matrix[1][3];
+		rHandPos[2] = boltMatrix.matrix[2][3];
+
+		BG_EvaluateTrajectory(&s1->pos, cg.time, pos);
+
+		CG_TestLine(rHandPos, pos, 1, 6, 1);
+		return;
+	}
+	else if ((cg.japro.detected && cent->currentState.weapon == WP_BRYAR_PISTOL && cent->currentState.saberInFlight) ||
+			 (cg.japlus.detected && cent->currentState.weapon == WP_STUN_BATON))
+	{
+		CG_GrappleTrail(cent);
+		return;
+	}
+	//japro
 
 	if ( s1->weapon > WP_NUM_WEAPONS && s1->weapon != G2_MODEL_PART ) {
 		s1->weapon = 0;

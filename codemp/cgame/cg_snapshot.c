@@ -5,7 +5,10 @@
 
 #include "cg_local.h"
 
-
+#define _LOGTRAILS 1
+#if _LOGTRAILS
+static void CG_LogStrafeTrail(void);
+#endif
 
 /*
 ==================
@@ -358,6 +361,10 @@ void CG_SetNextSnap( snapshot_t *snap ) {
 
 	// sort out solid entities
 	CG_BuildSolidList();
+
+#if _LOGTRAILS
+	CG_LogStrafeTrail();
+#endif
 }
 
 /*
@@ -661,3 +668,51 @@ void CG_ProcessSnapshots( void ) {
 
 }
 
+#if _LOGTRAILS
+static void CG_LogStrafeTrail(void) {
+	if (Q_stricmp("0", cg_logStrafeTrail.string) && cg.snap->ps.stats[11] && cg.snap->ps.duelTime) {
+		centity_t *player = &cg_entities[cg.snap->ps.clientNum];
+		vec3_t diff;
+		char *str;
+		char input[MAX_QPATH], fileName[MAX_QPATH];
+
+		if (!VectorCompare(player->lastOrigin, player->lerpOrigin) && VectorLengthSquared(diff) < 192 * 192) {
+			Q_strncpyz(input, cg_logStrafeTrail.string, sizeof(input));
+
+			Q_strstrip(input, "\n\r;:?*<>|\"\\/ ", NULL);
+			Q_CleanStr(input, qfalse);
+			Q_strlwr(fileName);//dat linux
+
+			Com_sprintf(fileName, sizeof(fileName), "strafetrails/%s.cfg", input);
+
+			if (!cg.japro.loggingStrafeTrail) {
+				trap_FS_FOpenFile(fileName, &cg.japro.strafeTrailFileHandle, FS_APPEND);
+			}
+			else { //Filename exists
+				if (Q_stricmp(cg.japro.logStrafeTrailFilename, fileName)) { //If we changed filename.. close old file?
+					trap_FS_FCloseFile(cg.japro.strafeTrailFileHandle);
+				}
+			}
+
+			Q_strncpyz(cg.japro.logStrafeTrailFilename, fileName, sizeof(cg.japro.logStrafeTrailFilename));
+
+			str = va("%i %i %i\n", (int)cg.snap->ps.origin[0], (int)cg.snap->ps.origin[1], (int)cg.snap->ps.origin[2]);
+
+			if (cg.japro.strafeTrailFileHandle) {
+				trap_FS_Write(str, strlen(str), cg.japro.strafeTrailFileHandle);
+			}
+			cg.japro.loggingStrafeTrail = qtrue;
+		}
+
+		VectorCopy(player->lerpOrigin, player->lastOrigin);
+		return;
+	}
+
+	if (cg.japro.loggingStrafeTrail && (!Q_stricmp("0", cg_logStrafeTrail.string) || (cg.snap->ps.stats[11] && !cg.snap->ps.duelTime)))
+	{
+		//Com_Printf("closing to %s\n", cg.japro.logStrafeTrailFilename);
+		trap_FS_FCloseFile(cg.japro.strafeTrailFileHandle);
+		cg.japro.loggingStrafeTrail = qfalse;
+	}
+}
+#endif

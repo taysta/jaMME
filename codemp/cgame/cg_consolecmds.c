@@ -30,21 +30,21 @@ typedef struct bitInfo_S {
 } bitInfo_T;
 
 static bitInfo_T strafeTweaks[SHELPER_MAX] = {
-        {"Original style"},//0
-        {"Updated style"},//1
-        {"Cgaz style"},//2
-        {"Warsow style"},//3
-        {"Sound"},//4
-        {"W"},//5
-        {"WA"},//6
-        {"WD"},//7
-        {"A"},//8
-        {"D"},//9
-        {"Rear"},//10
-        {"Center"},//11
-        {"Accel bar"},//12
-        {"Weze style"},//13
-        {"Line Crosshair"},//14
+		{"Original style"},//0
+		{"Updated style"},//1
+		{"Cgaz style"},//2
+		{"Warsow style"},//3
+		{"W"},//4
+		{"WA"},//5
+		{"WD"},//6
+		{"A"},//7
+		{"D"},//8
+		{"Rear"},//9
+		{"Center"},//10
+		{"Line Crosshair"},//11
+		{"Sound"},//12
+        {"Accel bar"},//13
+        {"Weze style"},//14
         {"S"},//15
         {"SA"},//16
         {"SD"},//17

@@ -10,6 +10,7 @@ start jamme +set com_affinity 0 +set fs_game mme +set fs_extraGames "japlus japp
 +exec render_settings +set r_fbo "0" +vid_restart ^
 +set mme_pipeCommand "ffmpeg -f avi -i - -threads 0 -preset ultrafast -y -pix_fmt yuv420p -crf %QUALITY% %%o.mp4 2> ffmpeglog.txt" ^
 +seek 0 ^
++demoSeekPreRecord -00:01 ^
 +exec strafe_settings ^
 +set viewlog 1 ^
 Exit

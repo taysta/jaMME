@@ -4,7 +4,7 @@ on:
   # Run on pushes to tags, the "master" branch, and PR's
   push:
     branches:
-      - master
+      - jamme-japro
     paths-ignore:
       - '**.md'
       - '*.txt'
@@ -274,7 +274,7 @@ jobs:
           if-no-files-found: error
 
   create-release:
-    if: github.ref == 'refs/heads/master' && github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    if: github.ref == 'refs/heads/jamme-japro' && github.event_name == 'push'
     needs: [windows, ubuntu, macos, macos-arm64]
     runs-on: ubuntu-latest
     steps:

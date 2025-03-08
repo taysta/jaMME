@@ -1,12 +1,15 @@
+## jaMME-jaPRO:
+* Get the latest release from the [Releases](https://github.com/taysta/jaMME/releases) page
+* Put ffmpeg.exe in the same folder as jaMME.exe to enable pipe output to ffmpeg using the provided scripts.
+* Put japro cgame and ui libraries in the japro folder for extended jaPRO support.
+* Use `+set demoSeekPreRecord "00:00"` after `+set seek 0` (as a fallback) for race demos with pre-recording to skip to the start time, you can offset this value. (eg `"-00:01"` to seek to 1 second before the race start)
+* Use the `mme_autoSeekPreRecord` cvar to set a default value that will always be applied as if the `demoSeekPreRecord` command was called at the load of a demo. (eg `"0"` = disabled, `"00:01"` to seek to 1 second after race start, `"1"` to seek to 1 minute after the race start)
+
 Jedi Academy Movie Maker's Edition
 ==================================
-[![build](https://github.com/entdark/jaMME/actions/workflows/build.yml/badge.svg)](https://github.com/entdark/jaMME/actions/workflows/build.yml)
+[![build](https://github.com/taysta/jaMME/actions/workflows/build.yml/badge.svg)](https://github.com/entdark/jaMME/actions/workflows/build.yml)
 
 Jedi Academy Movie Maker's Edition (jaMME) is an engine modification of Jedi Academy for moviemaking. It's a port of q3mme with most of its features and some new ones. The modification is based on very early (May 2013th) version of OpenJK. Original source code belongs to Raven Software.
-
-### jaPRO Install Notes:
-* Put ffmpeg.exe in the same folder as jaMME.exe to enable pipe output to ffmpeg.
-* Put japro cgame and ui libraries in the jaPRO folder for extended jaPRO support.
 
 # Features #
 * demo playback control (pause, rewind)
